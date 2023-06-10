@@ -1,7 +1,7 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
-require('dotenv').config()
+require("dotenv").config();
 const port = process.env.PORT || 3000;
 
 // middleware
@@ -26,14 +26,16 @@ async function run() {
     await client.connect();
 
     //DB_Collections
-    const courseCollection = client.db('educamDB').collection('courses');
-    const reviewCollection = client.db('educamDB').collection('review');
+    const courseCollection = client.db("educamDB").collection("courses");
+    const reviewCollection = client.db("educamDB").collection("review");
 
-    app.get('/popular', async(req, res) =>{
-        const result = await courseCollection.find({ popular: true }).toArray();
-        res.send(result)
-    })
-
+    app.get("/popular", async (req, res) => {
+      const result = await courseCollection
+        .find()
+        .sort({ enrolled_students: -1 })
+        .toArray();
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
