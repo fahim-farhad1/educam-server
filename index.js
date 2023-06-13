@@ -53,9 +53,10 @@ async function run() {
       res.send(result);
     });
 
-    app.patch('students/admin/:id', async(req, res) => {
+    app.patch('/students/admin/:id', async(req, res) => {
         const id = req.params.id;
         const query = {_id: new ObjectId(id)};
+        console.log(id);
         const updateDoc = {
             $set: {
                 role: 'admin'
