@@ -1,5 +1,5 @@
 const express = require("express");
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
 const app = express();
 const cors = require("cors");
 require("dotenv").config();
@@ -8,6 +8,24 @@ const port = process.env.PORT || 3000;
 // middleware
 app.use(cors());
 app.use(express.json());
+
+const verifyJWT = (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res.status(401).send({ error: true, message: "unauthorize access" });
+  }
+
+  const token = authorization.split(" ")[1];
+
+  // verify a token symmetric
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) =>{
+    if(err){
+        return res.status(401).send({ error: true, message: "unauthorize access" })
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.lxtlzfc.mongodb.net/?retryWrites=true&w=majority`;
@@ -35,26 +53,27 @@ async function run() {
       .collection("Instructors");
     const reviewCollection = client.db("educamDB").collection("review");
 
+    app.post("/jwt", (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
 
-    app.post('/jwt', (req, res) =>{
-        const user = req.body;
-        const token = jwt.sign(user, env.process.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
-
-        res.send({ token })
-    })
+      res.send({ token });
+    });
 
     // Students related API
     app.post("/students", async (req, res) => {
       const student = req.body;
       console.log(student);
-      const query = {email: student.email}
+      const query = { email: student.email };
       const existingUser = await studentCollection.findOne(query);
-      console.log('user exit:-',existingUser);
-      if(existingUser){
-       return res.send({message: "user already Exists"});
+      console.log("user exit:-", existingUser);
+      if (existingUser) {
+        return res.send({ message: "user already Exists" });
       }
       const result = await studentCollection.insertOne(student);
-    res.send(result);
+      res.send(result);
     });
 
     app.get("/students", async (req, res) => {
@@ -62,33 +81,34 @@ async function run() {
       res.send(result);
     });
 
-    app.patch('/students/admin/:id', async(req, res) => {
-        const id = req.params.id;
-        const query = {_id: new ObjectId(id)};
-        console.log(id);
-        const updateDoc = {
-            $set: {
-                role: 'admin'
-            },
-        }
-        const result = await studentCollection.updateOne(query, updateDoc);
-        res.send(result);
-    })
-
-    //Add  Class Collections related API
-    app.post("/addtoclass", async (req, res) => {
-      const addClass = req.body;
-    //   console.log(addClass);
-      const query = {classId: addClass.classId}
-      const existingClass = await addToClassCollection.findOne(query);
-      if(existingClass){
-        res.send({message: "Class already Exists"})
-      }
-      const result = await addToClassCollection.insertOne(addClass);
+    app.patch("/students/admin/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      console.log(id);
+      const updateDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await studentCollection.updateOne(query, updateDoc);
       res.send(result);
     });
 
-    app.get("/addedclass", async (req, res) => {
+    //Add  Class Collections related API
+    app.post("/addtoclass", async (req, res) => {
+        const addClass = req.body;
+      //   console.log(addClass);
+        const query = {classId: addClass.classId}
+        const existingClass = await addToClassCollection.findOne(query);
+        console.log('class', existingClass);
+        if(existingClass){
+         return res.send({message: "Class already Exists"})
+        }
+        const result = await addToClassCollection.insertOne(query);
+        res.send(result);
+      });
+
+    app.get("/addtoclass", async (req, res) => {
       const email = req.query.email;
       if (!email) {
         res.send([]);
@@ -98,6 +118,15 @@ async function run() {
       res.send(result);
     });
 
+    // Delete items
+    app.delete("/addtoclass/:id", async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await addToClassCollection.deleteOne(query);
+        res.send(result);
+      });
+
+    // popular classes related api
     app.get("/popular", async (req, res) => {
       const result = await courseCollection
         .find()
@@ -116,13 +145,7 @@ async function run() {
       res.send(result);
     });
 
-    // Delete items
-    app.delete("/addedclass/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await addToClassCollection.deleteOne(query);
-      res.send(result);
-    });
+    
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
