@@ -1,4 +1,5 @@
 const express = require("express");
+const jwt = require('jsonwebtoken');
 const app = express();
 const cors = require("cors");
 require("dotenv").config();
@@ -33,6 +34,14 @@ async function run() {
       .db("educamDB")
       .collection("Instructors");
     const reviewCollection = client.db("educamDB").collection("review");
+
+
+    app.post('/jwt', (req, res) =>{
+        const user = req.body;
+        const token = jwt.sign(user, env.process.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
+
+        res.send({ token })
+    })
 
     // Students related API
     app.post("/students", async (req, res) => {
