@@ -15,7 +15,7 @@ const verifyJWT = (req, res, next) => {
     return res.status(401).send({ error: true, message: "unauthorize access" });
   }
 
-  const token = authorization.split(" ")[1];
+  const token = authorization.split(' ')[1];
 
   // verify a token symmetric
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) =>{
@@ -52,16 +52,26 @@ async function run() {
       .db("educamDB")
       .collection("Instructors");
     const reviewCollection = client.db("educamDB").collection("review");
-
+    // JWT
     app.post("/jwt", (req, res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "1h",
+        expiresIn: "2h",
       });
 
       res.send({ token });
     });
 
+    const verifyAdmin = async(req, res, next) =>{
+        const email = req.decoded.email;
+        const query = {email: email}
+        const user = await studentCollection.findOne(query);
+        if(user?.role !== 'admin'){
+            return res.status(403).send({error: true, message: 'forbidden message'})
+        }
+        next();
+
+    }
     // Students related API
     app.post("/students", async (req, res) => {
       const student = req.body;
@@ -81,10 +91,22 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/students/admin/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      console.log(id);
+    // admin related api
+    app.get('students/admin/:email', async(req, res) =>{
+        const email = req.params.email;
+        if (req.decoded.email !== email){
+            res.send({admin: false})
+        }
+
+        const query = {email: email}
+        const admin = await studentCollection.findOne(query);
+        const result = {admin: admin?.role === 'admin'}
+        res.send(result);
+    })
+    app.patch("/students/admin/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email};
+      console.log(email);
       const updateDoc = {
         $set: {
           role: "admin",
@@ -104,7 +126,7 @@ async function run() {
         if(existingClass){
          return res.send({message: "Class already Exists"})
         }
-        const result = await addToClassCollection.insertOne(query);
+        const result = await addToClassCollection.insertOne(addClass);
         res.send(result);
       });
 
@@ -113,6 +135,11 @@ async function run() {
       if (!email) {
         res.send([]);
       }
+
+    //   const decodedEmail = req.decoded.email;
+    //   if(email !== decodedEmail){ 
+    //     return res.status(403).send({error: true, message: 'provident access' })
+    //   }
       const query = { email: email };
       const result = await addToClassCollection.find(query).toArray();
       res.send(result);
