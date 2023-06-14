@@ -61,7 +61,7 @@ async function run() {
 
       res.send({ token });
     });
-
+    // verify admin
     const verifyAdmin = async(req, res, next) =>{
         const email = req.decoded.email;
         const query = {email: email}
@@ -70,15 +70,24 @@ async function run() {
             return res.status(403).send({error: true, message: 'forbidden message'})
         }
         next();
-
+    }
+    // verify instructors 
+    const verifyInstructors = async(req, res, next) =>{
+        const email = req.decoded.email;
+        const query = {email: email}
+        const user = await studentCollection.findOne(query);
+        if(user?.role !== 'instructor'){
+            return res.status(403).send({error: true, message: 'forbidden message'})
+        }
+        next();
     }
     // Students related API
     app.post("/students", async (req, res) => {
       const student = req.body;
-      console.log(student);
+    //   console.log(student);
       const query = { email: student.email };
       const existingUser = await studentCollection.findOne(query);
-      console.log("user exit:-", existingUser);
+    //   console.log("user exit:-", existingUser);
       if (existingUser) {
         return res.send({ message: "user already Exists" });
       }
@@ -92,8 +101,9 @@ async function run() {
     });
 
     // admin related api
-    app.get('students/admin/:email', async(req, res) =>{
+    app.get('/students/admin/:email', async(req, res) =>{
         const email = req.params.email;
+        console.log(email);
         if (req.decoded.email !== email){
             res.send({admin: false})
         }
@@ -101,15 +111,30 @@ async function run() {
         const query = {email: email}
         const admin = await studentCollection.findOne(query);
         const result = {admin: admin?.role === 'admin'}
+        console.log(result);
         res.send(result);
     })
     app.patch("/students/admin/:email", async (req, res) => {
       const email = req.params.email;
       const query = { email: email};
-      console.log(email);
+    //   console.log(email);
       const updateDoc = {
         $set: {
           role: "admin",
+        },
+      };
+      const result = await studentCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+    // instructors http://localhost:3000/students/instructor/
+    app.patch("/students/instructor/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email};
+    //   console.log(email);
+      const updateDoc = {
+        $set: {
+          role: "instructor",
         },
       };
       const result = await studentCollection.updateOne(query, updateDoc);
@@ -122,7 +147,7 @@ async function run() {
       //   console.log(addClass);
         const query = {classId: addClass.classId}
         const existingClass = await addToClassCollection.findOne(query);
-        console.log('class', existingClass);
+        // console.log('class', existingClass);
         if(existingClass){
          return res.send({message: "Class already Exists"})
         }
@@ -130,16 +155,16 @@ async function run() {
         res.send(result);
       });
 
-    app.get("/addtoclass", async (req, res) => {
+    app.get("/addtoclass", verifyJWT, async (req, res) => {
       const email = req.query.email;
       if (!email) {
         res.send([]);
       }
 
-    //   const decodedEmail = req.decoded.email;
-    //   if(email !== decodedEmail){ 
-    //     return res.status(403).send({error: true, message: 'provident access' })
-    //   }
+      const decodedEmail = req.decoded.email;
+      if(email !== decodedEmail){ 
+        return res.status(403).send({error: true, message: 'provident access' })
+      }
       const query = { email: email };
       const result = await addToClassCollection.find(query).toArray();
       res.send(result);
