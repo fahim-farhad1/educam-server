@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const app = express();
 const cors = require("cors");
 require("dotenv").config();
+const stripe = require("stripe")(process.env.PAYMENT_SECRITE_KEY);
 const port = process.env.PORT || 3000;
 
 // middleware
@@ -43,7 +44,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     //DB_Collections
     const courseCollection = client.db("educamDB").collection("courses");
@@ -53,6 +54,7 @@ async function run() {
       .db("educamDB")
       .collection("Instructors");
     const reviewCollection = client.db("educamDB").collection("review");
+    const paymentsCollection = client.db("educamDB").collection("payments");
 
     // JWT
     app.post("/jwt", (req, res) => {
@@ -88,6 +90,34 @@ async function run() {
       }
       next();
     };
+
+    // Payments Related api 
+    app.post("/create-payment-intent", async (req, res) => {
+      const { course_price } = req.body;
+      const amount = parseInt(course_price * 100);
+      console.log("amount", amount);
+      // Create a PaymentIntent with the order amount and currency
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+
+    // post all payments
+    app.post('/payments', async(req, res) => {
+      const payments = req.body;
+      console.log("payments", payments);
+      const result = await paymentsCollection.insertOne(payments);
+      console.log("115",result);
+      res.send(result);
+    })
+
+
 
     // Students related API
     app.post("/students", async (req, res) => {
@@ -180,8 +210,8 @@ async function run() {
     // Admin Approved Class
     app.patch("/classes/approved/:id", async (req, res) => {
       const id = req.params.id;
-      const filter = { _id: new ObjectId(id)};
-        console.log('approved', filter);
+      const filter = { _id: new ObjectId(id) };
+      console.log("approved", filter);
       const updateDoc = {
         $set: {
           status: "approved",
@@ -194,8 +224,8 @@ async function run() {
     // Admin Deny Classes
     app.patch("/classes/deny/:id", async (req, res) => {
       const id = req.params.id;
-      const filter = { _id: new ObjectId(id)};
-        console.log('deny', filter);
+      const filter = { _id: new ObjectId(id) };
+      console.log("deny", filter);
       const updateDoc = {
         $set: {
           status: "deny",
@@ -205,8 +235,21 @@ async function run() {
       res.send(result);
     });
 
-    // Admin Feedback 
-
+    // Admin Feedback
+    app.patch("/adminfeedback/:id", async (req, res) => {
+      const id = req.params.id;
+      const feedback = req.body;
+      const filter = { _id: new ObjectId(id) };
+      // console.log('214',feedback);
+      const updateDoc = {
+        $set: {
+          feedback: feedback.feedback,
+        },
+      };
+      const result = await courseCollection.updateOne(filter, updateDoc);
+      console.log("221", result);
+      res.send(result);
+    });
 
     //Student Add  Class Collections related API
     app.post("/addtoclass", async (req, res) => {
@@ -242,9 +285,20 @@ async function run() {
     app.put("/classess/:id", async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
-        // console.log('214',filter);
-      const result = await courseCollection.updateOne(filter);
-      console.log('216',result);
+      const updateClass = req.body;
+      const classes = {
+        $set: {
+          course_image: updateClass.course_image,
+          course_name: updateClass.course_name,
+          course_instructor: updateClass.course_instructor,
+          course_description: updateClass.course_description,
+          course_price: updateClass.course_price,
+          available_seats: updateClass.available_seats,
+          instructor_email: updateClass.instructor_email,
+        },
+      };
+      const result = await courseCollection.updateOne(filter, classes);
+      console.log(result);
       res.send(result);
     });
 
@@ -296,10 +350,10 @@ async function run() {
       res.send(result);
     });
 
-    // get with id 
+    // get with id
     app.get("/classes/:id", async (req, res) => {
       const id = req.params.id;
-      const filter = {_id: new ObjectId(id)}
+      const filter = { _id: new ObjectId(id) };
       const result = await courseCollection.findOne(filter);
       // console.log('272',result);
       res.send(result);
@@ -312,7 +366,7 @@ async function run() {
     });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
